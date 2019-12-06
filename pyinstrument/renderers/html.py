@@ -9,8 +9,10 @@ from pyinstrument import processors
 
 class HTMLRenderer(Renderer):
     def render(self, session):
+        print("---------------------------asdfasdfasdf--------------")
+        print(os.path.dirname(os.path.abspath(__file__)))
         resources_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'html_resources/')
-
+            
         if not os.path.exists(os.path.join(resources_dir, 'app.js')):
             raise RuntimeError("Could not find app.js. If you are running "
                                "pyinstrument from a git checkout, run 'python "

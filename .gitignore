@@ -4,6 +4,8 @@ env2/
 env3/
 .Python
 /env
+venv
+django 
 
 # python
 *.pyc
@@ -18,6 +20,8 @@ build
 # testing
 .cache
 .pytest_cache
+django/ 
+test.py
 
 # editor
 .vscode

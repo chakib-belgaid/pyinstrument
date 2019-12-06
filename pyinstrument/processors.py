@@ -157,7 +157,7 @@ def remove_irrelevant_nodes(frame, options, total_time=None):
     filter_threshold = options.get('filter_threshold', 0.01)
 
     for child in frame.children:
-        proportion_of_total = child.time() / total_time
+        proportion_of_total = child.time() / total_time if total_time > 0 else 0 
 
         if proportion_of_total < filter_threshold:
             frame.self_time += child.time()

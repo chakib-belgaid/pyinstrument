@@ -10,8 +10,18 @@ try:
 except ImportError:
     process_time = None
 
-timer = timeit.default_timer
+energyfile=open('/sys/devices/virtual/powercap/intel-rapl/intel-rapl:0/energy_uj')
 
+def energy_recorder():
+    energyfile=open('/sys/devices/virtual/powercap/intel-rapl/intel-rapl:0/energy_uj','r')
+    while True : 
+        x= float(energyfile.readline()[:-1])/10**6
+        yield x
+        energyfile.seek(0)
+
+# timer = timeit.default_timer
+
+timer = energy_recorder()
 
 
 
@@ -19,7 +29,7 @@ class Profiler(object):
     # pylint: disable=W0613
     @deprecated_option('use_signal')
     @deprecated_option('recorder')
-    def __init__(self, interval=0.001, use_signal=None, recorder=None):
+    def __init__(self, interval=0.0001, use_signal=None, recorder=None):
         self.interval = interval
         self.last_profile_time = 0.0
         self.frame_records = []
@@ -28,8 +38,9 @@ class Profiler(object):
         self.last_session = None
 
     def start(self, caller_frame=None):
-        self.last_profile_time = timer()
+        self.last_profile_time = next(timer)
         self._start_time = time.time()
+        # self._start_time =next(timer) 
         if process_time:
             self._start_process_time = process_time()
         if caller_frame is None:
@@ -67,7 +78,7 @@ class Profiler(object):
 
     # pylint: disable=W0613
     def _profile(self, frame, event, arg):
-        now = timer()
+        now = next(timer)
         time_since_last_profile = now - self.last_profile_time
 
         if event == 'call':
