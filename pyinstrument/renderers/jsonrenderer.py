@@ -22,7 +22,7 @@ class JSONRenderer(Renderer):
         property_decls.append(u'"file_path_short": %s' % encode_str(frame.file_path_short))
         property_decls.append(u'"file_path": %s' % encode_str(frame.file_path))
         property_decls.append(u'"line_no": %d' % frame.line_no)
-        property_decls.append(u'"time": %f' % frame.time())
+        property_decls.append(u'"energy": %f' % frame.time())
         property_decls.append(u'"is_application_code": %s' % encode_bool(frame.is_application_code))
 
         # can't use list comprehension here because it uses two stack frames each time.
