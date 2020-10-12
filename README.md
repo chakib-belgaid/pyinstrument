@@ -30,7 +30,7 @@ Installation
 
 Pyinstrument supports Python 2.7 and 3.3+.
 
-> To run Pyinstrument from a git checkout or from a source tarball, there's a build step.
+> To run Pyinstrument from a git checkout, there's a build step.
 Take a look at [Contributing](#contributing) for more info.
 
 How to use it
@@ -95,6 +95,8 @@ print(profiler.output_text(unicode=True, color=True))
 (You can omit the `unicode` and `color` flags if your output/terminal does
 not support them.)
 
+**Protip:** To render the output as HTML, use `profiler.output_html()`
+
 ### Profile a web request in Django
 
 To profile Django web requests, add
@@ -109,6 +111,20 @@ If you're writing an API, it's not easy to change the URL when you want to
 profile something. In this case, add  `PYINSTRUMENT_PROFILE_DIR = 'profiles'`
 to your `settings.py`. Pyinstrument will profile every request and save the
 HTML output to the folder `profiles` in your working directory.
+
+If you want to show the profiling page depending on the request you can define 
+`PYINSTRUMENT_SHOW_CALLBACK` as dotted path to a function used for determining 
+whether the page should show or not.
+You can provide your own function callback(request) which returns True or False 
+in your settings.py.
+
+```python
+def custom_show_pyinstrument(request):
+    return request.user.is_superuser
+
+
+PYINSTRUMENT_SHOW_CALLBACK = "%s.custom_show_pyinstrument" % __name__
+```
 
 ### Profile a web request in Flask
 
@@ -248,6 +264,31 @@ samples were 'bunched up' and recorded at the end.
 
 Changelog
 ---------
+
+### v3.2.0
+
+- Added the ability to track time in C functions. Minor note - Pyinstrument 
+  will record time spent C functions as 'leaf' functions, due to a limitation
+  in how Python records frames. `Python -> C -> Python` is recorded as 
+  `Python -> Python`, but `Python -> Python -> C` will be attributed correctly.
+  (#103)
+
+### v3.1.2
+
+- Fix `<__array_function__ internals>` frames appearing as app code in reports
+
+### v3.1.1
+
+- Added support for timeline mode on HTML and JSON renderers
+- Released as a tarball as well as a universal wheel
+
+### v3.1.0
+
+- Added PYINSTRUMENT_SHOW_CALLBACK option on the Django middleware to 
+  add a condition to showing the profile (could be used to run pyinstrument
+  on a live server!)
+- Fixed bug in the Django middleware where file would not be written because
+  of a unicode error
 
 ### v3.0.3
 
@@ -424,16 +465,10 @@ To setup a dev envronment, do:
     . env/bin/activate
     pip install -r requirements-dev.txt
 
-> Note: if you get an SSL error doing the above, it might be due to setuptools trying
-> to install pytest-runner, since it's listed in setup_requires. The workaround is to 
-> make sure your pip is up-to-date (`curl https://bootstrap.pypa.io/get-pip.py | python`)
-> and then install it first `pip install pytest-runner`. Then try 
-> `pip install -r requirements-dev.txt`.
-
 To get some sample output:
 
     pyinstrument examples/wikipedia_article_word_count.py
 
 To run the tests:
 
-    python setup.py test
+    pytest
