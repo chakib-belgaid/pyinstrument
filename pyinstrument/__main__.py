@@ -1,8 +1,8 @@
-import sys, os, codecs, runpy, tempfile, glob, time, fnmatch, optparse
+import sys, os, codecs, runpy, glob, time, fnmatch, optparse, shutil
 import pyinstrument
 from pyinstrument import Profiler, renderers
 from pyinstrument.session import ProfilerSession
-from pyinstrument.util import object_with_import_path
+from pyinstrument.util import file_is_a_tty, file_supports_color, file_supports_unicode, object_with_import_path
 from pyinstrument.vendor.six import exec_, PY2
 from pyinstrument.vendor import appdirs
 
@@ -25,12 +25,15 @@ def main():
 
     parser.add_option('', '--load-prev',
         dest='load_prev', action='store', metavar='ID',
-        help="Instead of running a script, load a previous report")
+        help="instead of running a script, load a previous report")
 
     parser.add_option('-m', '',
         dest='module_name', action='callback', callback=dash_m_callback,
         type="str",
         help="run library module as a script, like 'python -m module'")
+    parser.add_option('', '--from-path',
+        dest='from_path', action='store_true',
+        help="(POSIX only) instead of the working directory, look for scriptfile in the PATH environment variable")
 
     parser.add_option('-o', '--outfile',
         dest="outfile", action='store',
@@ -53,8 +56,7 @@ def main():
     parser.add_option('', '--hide',
         dest='hide_fnmatch', action='store', metavar='EXPR',
         help=("glob-style pattern matching the file paths whose frames to hide. Defaults to "
-              "'*{sep}lib{sep}*'.").format(sep=os.sep),
-        default='*{sep}lib{sep}*'.format(sep=os.sep))
+              "hiding non-application code"))
     parser.add_option('', '--hide-regex',
         dest='hide_regex', action='store', metavar='REGEX',
         help=("regex matching the file paths whose frames to hide. Useful if --hide doesn't give "
@@ -98,12 +100,24 @@ def main():
         parser.print_help()
         sys.exit(2)
 
-    if not options.hide_regex:
+    if options.module_name is not None and options.from_path:
+        parser.error("The options -m and --from-path are mutually exclusive.")
+
+    if options.from_path and sys.platform == 'win32':
+        parser.error('--from-path is not supported on Windows')
+
+    if options.hide_fnmatch is not None and options.hide_regex is not None:
+        parser.error('You can‘t specify both --hide and --hide-regex')
+
+    if options.hide_fnmatch is not None:
         options.hide_regex = fnmatch.translate(options.hide_fnmatch)
-    
-    if not options.show_regex and options.show_fnmatch:
+
+    show_options_used = [options.show_fnmatch is not None, options.show_regex is not None, options.show_all]
+    if show_options_used.count(True) > 1:
+        parser.error('You can only specify one of --show, --show-regex and --show-all')
+
+    if options.show_fnmatch is not None:
         options.show_regex = fnmatch.translate(options.show_fnmatch)
-     
     if options.show_all:
         options.show_regex = r'.*'
 
@@ -111,22 +125,34 @@ def main():
         session = load_report(options.load_prev)
     else:
         if options.module_name is not None:
+            if not (sys.path[0] and os.path.samefile(sys.path[0], '.')):
+                # when called with '-m', search the cwd for that module
+                sys.path[0] = os.path.abspath('.')
+
             sys.argv[:] = [options.module_name] + options.module_args
-            code = "run_module(modname, run_name='__main__')"
+            code = "run_module(modname, run_name='__main__', alter_sys=True)"
             globs = {
                 'run_module': runpy.run_module,
                 'modname': options.module_name
             }
         else:
             sys.argv[:] = args
-            progname = args[0]
-            sys.path.insert(0, os.path.dirname(progname))
-            with open(progname, 'rb') as fp:
-                code = compile(fp.read(), progname, 'exec')
+            if options.from_path:
+                progname = shutil.which(args[0])
+                if progname is None:
+                    sys.exit('Error: program {} not found in PATH!'.format(args[0]))
+            else:
+                progname = args[0]
+                if not os.path.exists(progname):
+                    sys.exit('Error: program {} not found!'.format(args[0]))
+
+            # Make sure we overwrite the first entry of sys.path ('.') with directory of the program.
+            sys.path[0] = os.path.dirname(progname)
+
+            code = "run_path(progname, run_name='__main__')"
             globs = {
-                '__file__': progname,
-                '__name__': '__main__',
-                '__package__': None,
+                'run_path': runpy.run_path,
+                'progname': progname
             }
 
         profiler = Profiler()
@@ -171,7 +197,7 @@ def main():
         color_override = options.color != None
         unicode = options.unicode if unicode_override else file_supports_unicode(f)
         color = options.color if color_override else file_supports_color(f)
-        
+
         renderer_kwargs.update({'unicode': unicode, 'color': color})
 
     renderer_class = get_renderer_class(options.renderer)
@@ -194,36 +220,6 @@ def main():
         print('To view this report with different options, run:')
         print('    pyinstrument --load-prev %s [options]' % report_identifier)
         print('')
-
-
-def file_supports_color(file_obj):
-    """
-    Returns True if the running system's terminal supports color.
-
-    Borrowed from Django
-    https://github.com/django/django/blob/master/django/core/management/color.py
-    """
-    plat = sys.platform
-    supported_platform = plat != 'Pocket PC' and (plat != 'win32' or
-                                                  'ANSICON' in os.environ)
-
-    is_a_tty = file_is_a_tty(file_obj)
-
-    return (supported_platform and is_a_tty)
-
-
-def file_supports_unicode(file_obj):
-    encoding = getattr(file_obj, 'encoding', None)
-    if not encoding:
-        return False
-
-    codec_info = codecs.lookup(encoding)
-
-    return ('utf' in codec_info.name)
-
-
-def file_is_a_tty(file_obj):
-    return hasattr(file_obj, 'isatty') and file_obj.isatty()
 
 
 def get_renderer_class(renderer):

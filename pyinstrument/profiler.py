@@ -2,7 +2,7 @@
 import timeit, time, sys, inspect
 from pyinstrument import renderers
 from pyinstrument.session import ProfilerSession
-from pyinstrument.util import deprecated, deprecated_option
+from pyinstrument.util import deprecated, deprecated_option, file_supports_color, file_supports_unicode
 from pyinstrument_cext import setstatprofile
 
 try:
@@ -47,6 +47,9 @@ class Profiler(object):
             caller_frame = inspect.currentframe().f_back
         self._start_call_stack = self._call_stack_for_frame(caller_frame)
 
+        if sys.getprofile() is not None:
+            raise RuntimeError('A profiler is already running. Running multiple profilers on the same thead is not supported.')
+
         setstatprofile(self._profile, self.interval)
 
     def stop(self):
@@ -83,7 +86,7 @@ class Profiler(object):
 
         if event == 'call':
             frame = frame.f_back
-        
+
 
         call_stack = self._call_stack_for_frame(frame)
 
@@ -112,16 +115,32 @@ class Profiler(object):
         call_stack.reverse()
         return call_stack
 
+    def print(self, file=sys.stdout, unicode=None, color=None, show_all=False, timeline=False):
+        if unicode is None:
+            unicode = file_supports_unicode(file)
+        if color is None:
+            color = file_supports_color(file)
+
+        print(
+            self.output_text(
+                unicode=unicode,
+                color=color,
+                show_all=show_all,
+                timeline=timeline,
+            ),
+            file=file,
+        )
+
     @deprecated_option('root')
     def output_text(self, root=None, unicode=False, color=False, show_all=False, timeline=False):
         return renderers.ConsoleRenderer(unicode=unicode, color=color, show_all=show_all, timeline=timeline).render(self.last_session)
 
     @deprecated_option('root')
-    def output_html(self, root=None):
-        return renderers.HTMLRenderer().render(self.last_session)
+    def output_html(self, root=None, timeline=False):
+        return renderers.HTMLRenderer(timeline=timeline).render(self.last_session)
 
-    def open_in_browser(self):
-        return renderers.HTMLRenderer().open_in_browser(self.last_session)
+    def open_in_browser(self, timeline=False):
+        return renderers.HTMLRenderer(timeline=timeline).open_in_browser(self.last_session)
 
     @deprecated_option('root')
     def output(self, renderer, root=None):

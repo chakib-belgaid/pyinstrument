@@ -8,6 +8,10 @@ from pyinstrument import processors
 
 
 class HTMLRenderer(Renderer):
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
     def render(self, session):
         print("---------------------------asdfasdfasdf--------------")
         print(os.path.dirname(os.path.abspath(__file__)))
