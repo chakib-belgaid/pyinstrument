@@ -78,13 +78,16 @@ def group_library_frames_processor(frame, options):
     show_regex = options.get('show_regex')
 
     def should_be_hidden(frame):
-        if (show_regex is not None) and not re.match(show_regex, frame.file_path):
+        should_show = (show_regex is not None) and re.match(show_regex, frame.file_path)
+        should_hide = (hide_regex is not None) and re.match(hide_regex, frame.file_path)
+
+        # check for explicit user show/hide rules. 'show' has precedence.
+        if should_show:
             return False
-        
-        if hide_regex is not None:
-            return re.match(hide_regex, frame.file_path)
-        else:
-            return not frame.is_application_code
+        if should_hide:
+            return True
+
+        return not frame.is_application_code
 
     def add_frames_to_group(frame, group):
         group.add_frame(frame)
@@ -100,7 +103,7 @@ def group_library_frames_processor(frame, options):
 
         group_library_frames_processor(child, options=options)
 
-    return frame    
+    return frame
 
 
 def merge_consecutive_self_time(frame, options):
@@ -123,10 +126,10 @@ def merge_consecutive_self_time(frame, options):
                 previous_self_time_frame = child
         else:
             previous_self_time_frame = None
-    
+
     for child in frame.children:
         merge_consecutive_self_time(child, options=options)
-    
+
     return frame
 
 
@@ -142,10 +145,10 @@ def remove_unnecessary_self_time_nodes(frame, options):
         child = frame.children[0]
         frame.self_time += child.self_time
         child.remove_from_parent()
-    
+
     for child in frame.children:
         remove_unnecessary_self_time_nodes(child, options=options)
-    
+
     return frame
 
 
@@ -155,7 +158,7 @@ def remove_irrelevant_nodes(frame, options, total_time=None):
     '''
     if frame is None:
         return None
-    
+
     if total_time is None:
         total_time = frame.time()
 
@@ -167,7 +170,7 @@ def remove_irrelevant_nodes(frame, options, total_time=None):
         if proportion_of_total < filter_threshold:
             frame.self_time += child.time()
             child.remove_from_parent()
-        
+
     for child in frame.children:
         remove_irrelevant_nodes(child, options=options, total_time=total_time)
 
